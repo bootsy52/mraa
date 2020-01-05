@@ -119,7 +119,7 @@ mraa_tinkerboard()
     b->adc_supported = 10;
     b->aio_dev[0].pin = 12;
     b->aio_non_seq = 1;
-
+                                          /* valid, gpio, pwm, fast_gpio, spi, i2c, aio, uart */
     mraa_tinkerboard_pininfo(b, 0,   -1, (mraa_pincapabilities_t){0,0,0,0,0,0,0,0}, "INVALID");
     mraa_tinkerboard_pininfo(b, 1,   -1, (mraa_pincapabilities_t){1,0,0,0,0,0,0,0}, "VCC3.3V_IO");
     mraa_tinkerboard_pininfo(b, 2,   -1, (mraa_pincapabilities_t){1,0,0,0,0,0,0,0}, "VCC5V_SYS");
@@ -131,36 +131,36 @@ mraa_tinkerboard()
     mraa_tinkerboard_pininfo(b, 8,  161, (mraa_pincapabilities_t){1,1,0,0,0,0,0,1}, "GP5B1_UART1TX");
     mraa_tinkerboard_pininfo(b, 9,   -1, (mraa_pincapabilities_t){1,0,0,0,0,0,0,0}, "GND");
     mraa_tinkerboard_pininfo(b, 10, 160, (mraa_pincapabilities_t){1,1,0,0,0,0,0,1}, "GP5B0_UART1RX");
-    mraa_tinkerboard_pininfo(b, 11, 164, (mraa_pincapabilities_t){1,1,1,0,0,0,0,0}, "GP5B4_SPI0CLK_UART4CTSN");
-    mraa_tinkerboard_pininfo(b, 12, 184, (mraa_pincapabilities_t){1,1,0,0,0,0,0,0}, "GP6A0_PCM/I2S_CLK");
-    mraa_tinkerboard_pininfo(b, 13, 166, (mraa_pincapabilities_t){1,1,1,0,0,0,0,0}, "GP5B6_SPI0_TXD_UART4TX");
+    mraa_tinkerboard_pininfo(b, 11, 164, (mraa_pincapabilities_t){1,1,0,0,1,0,0,1}, "GP5B4_SPI0CLK_UART4CTSN");
+    mraa_tinkerboard_pininfo(b, 12, 184, (mraa_pincapabilities_t){1,1,0,0,0,1,1,0}, "GP6A0_PCM/I2S_CLK");
+    mraa_tinkerboard_pininfo(b, 13, 166, (mraa_pincapabilities_t){1,1,0,0,1,0,0,1}, "GP5B6_SPI0_TXD_UART4TX");
     mraa_tinkerboard_pininfo(b, 14,  -1, (mraa_pincapabilities_t){1,0,0,0,0,0,0,0}, "GND");
-    mraa_tinkerboard_pininfo(b, 15, 167, (mraa_pincapabilities_t){1,1,0,0,0,0,0,0}, "GP5B7_SPI0_RXD_UART4RX");
+    mraa_tinkerboard_pininfo(b, 15, 167, (mraa_pincapabilities_t){1,1,0,0,1,0,0,1}, "GP5B7_SPI0_RXD_UART4RX");
     mraa_tinkerboard_pininfo(b, 16, 162, (mraa_pincapabilities_t){1,1,0,0,0,0,0,0}, "GP5B2_UART1CTSN");
     mraa_tinkerboard_pininfo(b, 17,  -1, (mraa_pincapabilities_t){1,0,0,0,0,0,0,0}, "VCC33_IO");
-    mraa_tinkerboard_pininfo(b, 18, 163, (mraa_pincapabilities_t){1,1,0,0,0,0,0,0}, "GP5B3_UART1RTSN");
-    mraa_tinkerboard_pininfo(b, 19, 257, (mraa_pincapabilities_t){1,1,0,0,1,0,0,1}, "GP8B1_SPI2TXD");
+    mraa_tinkerboard_pininfo(b, 18, 163, (mraa_pincapabilities_t){1,1,0,0,0,0,0,1}, "GP5B3_UART1RTSN");
+    mraa_tinkerboard_pininfo(b, 19, 257, (mraa_pincapabilities_t){1,1,0,0,1,0,0,0}, "GP8B1_SPI2TXD");
     mraa_tinkerboard_pininfo(b, 20,  -1, (mraa_pincapabilities_t){1,0,0,0,0,0,0,0}, "GND");
-    mraa_tinkerboard_pininfo(b, 21, 256, (mraa_pincapabilities_t){1,1,0,0,1,0,0,1}, "GP8B0_SPI2RXD");
+    mraa_tinkerboard_pininfo(b, 21, 256, (mraa_pincapabilities_t){1,1,0,0,1,0,0,0}, "GP8B0_SPI2RXD");
     mraa_tinkerboard_pininfo(b, 22, 171, (mraa_pincapabilities_t){1,1,0,0,0,0,0,0}, "GP5C3");
     mraa_tinkerboard_pininfo(b, 23, 254, (mraa_pincapabilities_t){1,1,0,0,1,0,0,0}, "GP8A6_SPI2CLK");
     mraa_tinkerboard_pininfo(b, 24, 255, (mraa_pincapabilities_t){1,1,0,0,1,0,0,0}, "GP8A7_SPI2CSN0");
     mraa_tinkerboard_pininfo(b, 25,  -1, (mraa_pincapabilities_t){1,0,0,0,0,0,0,0}, "GND");
-    mraa_tinkerboard_pininfo(b, 26, 251, (mraa_pincapabilities_t){1,0,0,0,0,0,1,0}, "GP8A3_SPI2CSN1");
+    mraa_tinkerboard_pininfo(b, 26, 251, (mraa_pincapabilities_t){1,0,0,0,1,0,0,0}, "GP8A3_SPI2CSN1");
     mraa_tinkerboard_pininfo(b, 27, 233, (mraa_pincapabilities_t){1,1,0,0,0,1,0,0}, "GP7C1_I2C4_SDA");
     mraa_tinkerboard_pininfo(b, 28, 234, (mraa_pincapabilities_t){1,1,0,0,0,1,0,0}, "GP7C2_I2C4_SCL");
-    mraa_tinkerboard_pininfo(b, 29, 165, (mraa_pincapabilities_t){1,1,0,0,1,1,0,0}, "GP5B5_SPI0CSN0_UART4RTSN");
+    mraa_tinkerboard_pininfo(b, 29, 165, (mraa_pincapabilities_t){1,1,0,0,1,0,0,1}, "GP5B5_SPI0CSN0_UART4RTSN");
     mraa_tinkerboard_pininfo(b, 30,  -1, (mraa_pincapabilities_t){1,0,0,0,0,0,0,0}, "GND");
-    mraa_tinkerboard_pininfo(b, 31, 168, (mraa_pincapabilities_t){1,1,0,0,1,1,0,0}, "GP5C0_SPI0CSN1");
-    mraa_tinkerboard_pininfo(b, 32, 239, (mraa_pincapabilities_t){1,1,0,0,0,0,0,0}, "GP7C7_UART2TX_PWM3");
-    mraa_tinkerboard_pininfo(b, 33, 238, (mraa_pincapabilities_t){1,1,0,0,1,0,0,0}, "GP7C6_UART2RX_PWM2");
+    mraa_tinkerboard_pininfo(b, 31, 168, (mraa_pincapabilities_t){1,1,0,0,1,0,0,0}, "GP5C0_SPI0CSN1");
+    mraa_tinkerboard_pininfo(b, 32, 239, (mraa_pincapabilities_t){1,1,1,0,0,0,0,1}, "GP7C7_UART2TX_PWM3");
+    mraa_tinkerboard_pininfo(b, 33, 238, (mraa_pincapabilities_t){1,1,1,0,0,0,0,1}, "GP7C6_UART2RX_PWM2");
     mraa_tinkerboard_pininfo(b, 34,  -1, (mraa_pincapabilities_t){1,0,0,0,0,0,0,0}, "GND");
-    mraa_tinkerboard_pininfo(b, 35, 185, (mraa_pincapabilities_t){1,1,0,0,0,0,0,0}, "GP6A1_PCM/I2S_FS");
-    mraa_tinkerboard_pininfo(b, 36, 223, (mraa_pincapabilities_t){1,1,0,0,0,0,0,0}, "GP7A7_UART3RX");
-    mraa_tinkerboard_pininfo(b, 37, 224, (mraa_pincapabilities_t){1,1,0,0,0,0,0,0}, "GP7B0_UART3TX");
-    mraa_tinkerboard_pininfo(b, 38, 187, (mraa_pincapabilities_t){1,1,0,0,0,0,0,0}, "GP6A3_PCM/I2S_SDI");
+    mraa_tinkerboard_pininfo(b, 35, 185, (mraa_pincapabilities_t){1,1,0,0,0,1,1,0}, "GP6A1_PCM/I2S_FS");
+    mraa_tinkerboard_pininfo(b, 36, 223, (mraa_pincapabilities_t){1,1,0,0,0,0,0,1}, "GP7A7_UART3RX");
+    mraa_tinkerboard_pininfo(b, 37, 224, (mraa_pincapabilities_t){1,1,0,0,0,0,0,1}, "GP7B0_UART3TX");
+    mraa_tinkerboard_pininfo(b, 38, 187, (mraa_pincapabilities_t){1,1,0,0,0,1,1,0}, "GP6A3_PCM/I2S_SDI");
     mraa_tinkerboard_pininfo(b, 39,  -1, (mraa_pincapabilities_t){1,0,0,0,0,0,0,0}, "GND");
-    mraa_tinkerboard_pininfo(b, 40, 188, (mraa_pincapabilities_t){1,1,0,0,0,0,0,0}, "GP6A4_PCM/I2S_SDO");
+    mraa_tinkerboard_pininfo(b, 40, 188, (mraa_pincapabilities_t){1,1,0,0,0,1,1,0}, "GP6A4_PCM/I2S_SDO");
 
     return b;
 }
