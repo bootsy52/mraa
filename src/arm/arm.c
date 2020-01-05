@@ -95,6 +95,8 @@ mraa_arm_platform()
                  mraa_file_contains("/proc/device-tree/model", "ROCK PI 4B")
                  )
             platform_type = MRAA_ROCKPI4;
+        else if (mraa_file_contains("/proc/device-tree/model", "Rockchip RK3288 Asus Tinker Board"))
+            platform_type = MRAA_TINKERBOARD;
         else if (mraa_file_contains("/proc/device-tree/compatible", "raspberrypi,"))
             platform_type = MRAA_RASPBERRY_PI;
         else if (mraa_file_contains("/proc/device-tree/model", "ADLINK ARM, LEC-PX30"))
