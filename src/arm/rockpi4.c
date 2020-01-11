@@ -36,6 +36,9 @@ static int mmap_fd_iomux = 0;
 static int mmap_fd_clock = 0;
 static int mmap_size = 4096UL;
 static mraa_rockchip_pininfo_t mraa_rockpi4_pinmap[MRAA_ROCKPI4_PIN_COUNT] = {NULL};
+static mraa_rockchip_pininfo_t* pins[MRAA_ROCKPI4_INTERNAL_PIN_COUNT] = {NULL};
+static mraa_rockchip_bankinfo_t* banks[MRAA_ROCKPI4_GPIO_BANK_COUNT] = {NULL};
+static mraa_rockchip_bankinfo_t* groups[MRAA_ROCKPI4_GPIO_GROUP_COUNT] = {NULL};
 static unsigned int mmap_count_bank[MRAA_ROCKPI4_GPIO_BANK_COUNT] = {0};
 static unsigned int mmap_count = 0;
 
@@ -74,7 +77,7 @@ mraa_rockpi4_mmap_unsetup(int bank)
     mmap_reg[bank] = NULL;
     close(mmap_fd[bank]);
     if (mmap_count <= 0) {
-    	mraa_result_t result = unmap_clock();
+    	mraa_result_t result = mraa_rockchip_unmap_clock();
     	if (result != MRAA_SUCCESS) {
     		return result;
     	}
@@ -97,8 +100,8 @@ mraa_rockpi4_mmap_write(mraa_gpio_context dev, int value)
     }
     register_value_direction = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_SWPORTA_DDR_OFFSET);
     register_value = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_SWPORTA_DR_OFFSET);
-    set_gpio_value(&register_value_direction, MRAA_ROCKPI4_GPIO_DIRECTION_OUT, group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT + dev->pin);
-    set_gpio_value(&register_value_direction, value, group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT + dev->pin);
+    mraa_rockchip_set_gpio_value(&register_value_direction, MRAA_ROCKPI4_GPIO_DIRECTION_OUT, group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT + dev->pin);
+    mraa_rockchip_set_gpio_value(&register_value_direction, value, group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT + dev->pin);
 
     return MRAA_SUCCESS;
 }
@@ -125,33 +128,14 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
         return MRAA_ERROR_INVALID_HANDLE;
     }
 	mraa_rockchip_bankinfo_t bankinfo = (mraa_rockchip_bankinfo_t) calloc(1, sizeof(mraa_rockchip_bankinfo_t));
-    bankinfo.bank = dev->pin / (MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT * MRAA_ROCKPI4_GPIO_GROUP_COUNT);
-	uint8_t group = dev->pin < MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT * MRAA_ROCKPI4_GPIO_GROUP_COUNT ? dev->pin / MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT  : (dev->pin - (MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT * MRAA_ROCKPI4_GPIO_GROUP_COUNT * bankinfo.bank)) / MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT;
-	uint8_t pin = dev->pin < MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT * MRAA_ROCKPI4_GPIO_GROUP_COUNT ? (dev->pin - (group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT)) : (dev->pin - (MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT * MRAA_ROCKPI4_GPIO_GROUP_COUNT * bankinfo.bank) - (group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT));
+    uint8_t bank      = dev->pin / (MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT * MRAA_ROCKPI4_GPIO_GROUP_COUNT);
+	uint8_t group     = dev->pin < MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT  * MRAA_ROCKPI4_GPIO_GROUP_COUNT ? dev->pin / MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT  : (dev->pin - (MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT * MRAA_ROCKPI4_GPIO_GROUP_COUNT * bankinfo.bank)) / MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT;
+	uint8_t pin       = dev->pin < MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT  * MRAA_ROCKPI4_GPIO_GROUP_COUNT ? (dev->pin - (group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT)) : (dev->pin - (MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT * MRAA_ROCKPI4_GPIO_GROUP_COUNT * bankinfo.bank) - (group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT));
 	uint8_t iomux_bit = 0;
 	uint8_t iomux_write_enable = 0;
 	mraa_rockchip_bankinfo_t bankinfo = (mraa_rockchip_bankinfo_t) calloc(1, sizeof(mraa_rockchip_bankinfo_t));
 
-    for (int i = 0; i < MRAA_ROCKPI4_GRF_BANK_COUNT; i++) {
-    	if (MRAA_ROCKPI4_GPIO_GRF_BANKS[i] == bankinfo.bank) {
-    		bankinfo.register_file = MRAA_ROCKCHIP_GRF;
-    		bankinfo.address = &MRAA_ROCKPI4_GPIO_BANK_ADDRESSES[bankinfo.bank];
-    		bankinfo.iomux_address = MRAA_ROCKPI4_GRF_REGISTER + MRAA_ROCKPI4_GRF_REGISTER_OFFSET_START + (bankinfo.bank - MRAA_ROCKPI4_PMU_BANK_COUNT) * 16 + group * MRAA_ROCKPI4_GRF_REGISTER_OFFSET;
-    	}
-    }
-    if (bankinfo.register_file == NULL) {
-    	for(int i = 0; i < MRAA_ROCKPI4_PMU_BANK_COUNT; i++) {
-    		if (MRAA_ROCKPI4_GPIO_PMU_BANKS[i] == bankinfo.bank) {
-    			bankinfo.register_file = MRAA_ROCKCHIP_PMU;
-    			bankinfo.address = &MRAA_ROCKPI4_GPIO_BANK_ADDRESSES[bankinfo.bank];
-    			bankinfo.iomux_address = MRAA_ROCKPI4_PMU_REGISTER + MRAA_ROCKPI4_PMU_REGISTER_OFFSET_START + bankinfo.bank * 16 + group * MRAA_ROCKPI4_PMU_REGISTER_OFFSET;
-    		    }
-    	}
-    }
-    if (bankinfo.register_file == NULL) {
-    	syslog(LOG_ERR, "rockpi4 mmap: bank is invalid");
-    	return MRAA_ERROR_INVALID_HANDLE;
-    }
+
 
     /* disable mmap if already enabled */
     if (enable == 0) {
@@ -162,6 +146,7 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
         dev->mmap_write = NULL;
         dev->mmap_read = NULL;
         mmap_count_bank[bankinfo.bank]--;
+        mmap_count--;
         if (mmap_count_bank[bankinfo.bank] == 0) {
             return mraa_rockpi4_mmap_unsetup(bankinfo.bank);
         }
@@ -189,13 +174,13 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
     }
 
     if (*bankinfo.register_file == MRAA_ROCKCHIP_GRF) {
-        mraa_result_t result = 	mmap_clock();
+        mraa_result_t result = 	mraa_rockchip_mmap_clock();
     	if (result != MRAA_SUCCESS) {
     			return result;
     	}
-    	if (is_clock_disabled(&bankinfo)) {
+    	if (mraa_rockchip_is_clock_disabled(&bankinfo)) {
     		bankinfo.default_clock_state = MRAA_ROCKCHIP_CLOCK_DISABLED;
-    		set_clock_state(&bankinfo, 1);
+    		mraa_rockchip_set_clock_state(&bankinfo, 1);
     		bankinfo.clock_state = MRAA_ROCKCHIP_CLOCK_ENABLED;
     	}
     }
@@ -214,19 +199,19 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
      }
     iomux_bit = pin * 2;
     iomux_write_enable = iomux_bit + MRAA_ROCKPI4_WRITE_ENABLE_BIT_OFFSET;
-    register_value_active_low(&mmap_reg_iomux, MRAA_ROCKPI4_IOMUX_GPIO_MASK, iomux_bit, iomux_write_enable);
+    mraa_rockchip_register_active_low(&mmap_reg_iomux, MRAA_ROCKPI4_IOMUX_GPIO_MASK, iomux_bit, iomux_write_enable);
     munmap(mmap_reg_iomux, mmap_size);
     mmap_reg_iomux = NULL;
     close(mmap_fd_iomux);
 
     if (bankinfo.default_clock_state == MRAA_ROCKCHIP_CLOCK_DISABLED) {
-    	set_clock_state(&bankinfo, 0);
+    	mraa_rockchip_set_clock_state(&bankinfo, 0);
     	bankinfo.clock_state = MRAA_ROCKCHIP_CLOCK_DISABLED;
     }
 
     mraa_rockchip_pininfo_t rockchip_pininfo = (mraa_rockchip_pininfo_t*) calloc(1, sizeof(mraa_rockchip_pininfo_t));
     rockchip_pininfo->pin          = dev->pin;
-    rockchip_pininfo->bankinfo         = &bankinfo;
+    rockchip_pininfo->bankinfo     = &bankinfo;
     rockchip_pininfo->group        = group;
     rockchip_pininfo->group_name   = &MRAA_ROCKPI4_GPIO_GROUPS[group];
     mraa_rockpi4_pinmap[dev->phy_pin] = rockchip_pininfo;
@@ -295,7 +280,7 @@ mraa_rockpi4()
     b->pwm_max_period = 2147483;
     b->pwm_min_period = 1;
 
-    b->pins = (mraa_pininfo_t*) malloc(sizeof(mraa_pininfo_t) * b->phy_pin_count);
+    b->pins = (mraa_pininfo_t*) calloc(b->phy_pin_count, sizeof(mraa_pininfo_t));
     if (b->pins == NULL) {
         free(b->adv_func);
         free(b);
@@ -359,11 +344,74 @@ mraa_rockpi4()
 
     return b;
 }
+static mraa_rockchip_pininfo_t* mraa_rockchip_setup(uint8_t pin) {
+		uint8_t bank;
+		uint8_t group;
+		mraa_rockchip_pininfo_t* pininfo;
+		if (pins[pin] == NULL) {
+			pins[pin] = (mraa_rockchip_pininfo_t*) calloc(1, sizeof(mraa_rockchip_pininfo_t));
+		} else {
+			return pins[pin];
+		}
+		bank = pin / MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT;
+		if (banks[bank] == NULL) {
+			banks[bank] =  (mraa_rockchip_bankinfo_t*) calloc(1, sizeof(mraa_rockchip_bankinfo_t));
+			mraa_rockchip_setup_bank(banks[bank], bank);
+		}
+		pins[pin]->bankinfo = banks[bank];
+		pins[pin]->pin = (pin - bank * MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT) % MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT;
+		group = (pin - bank * MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT) / MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT;
+		if (groups[group] == NULL) {
+			groups[group] = (mraa_rockchip_groupinfo_t*) calloc(1, sizeof(mraa_rockchip_groupinfo_t));
+			mraa_rockchip_setup_group(banks[bank], groups[group], group);
+		}
+		pins[pin]->groupinfo = groups[group];
+		return pins[pin];
+}
+static mraa_result_t mraa_rockchip_setup_bank(mraa_rockchip_bankinfo_t* bankinfo, uint8_t bank) {
+	free(bankinfo);
+	bankinfo =  (mraa_rockchip_bankinfo_t*) calloc(1, sizeof(mraa_rockchip_bankinfo_t));
+	bankinfo->bank = bank;
+	bankinfo->address = &MRAA_ROCKPI4_GPIO_BANK_ADDRESSES[bank];
+	for (int i = 0; i < MRAA_ROCKPI4_GRF_BANK_COUNT; i++) {
+	    	if (MRAA_ROCKPI4_GPIO_GRF_BANKS[i] == bank) {
+	    		bankinfo->register_file = MRAA_ROCKCHIP_GRF;
+	    	}
+	    }
+	    if (bankinfo->register_file == NULL) {
+	    	for(int i = 0; i < MRAA_ROCKPI4_PMU_BANK_COUNT; i++) {
+	    		if (MRAA_ROCKPI4_GPIO_PMU_BANKS[i] == bank) {
+	    			bankinfo->register_file = MRAA_ROCKCHIP_PMU;
+	    		    }
+	    	}
+	    }
+	    if (bankinfo->register_file == NULL) {
+	    	free(bankinfo);
+	    	syslog(LOG_ERR, "rockpi4 mmap: bank is invalid");
+	    	return MRAA_ERROR_INVALID_HANDLE;
+	    }
+	 return MRAA_SUCCESS;
+}
+static mraa_result_t mraa_rockchip_setup_group(mraa_rockchip_bankinfo_t* bankinfo, mraa_rockchip_groupinfo_t* groupinfo, uint8_t group) {
+	free(groupinfo);
+	groupinfo = (mraa_rockchip_groupinfo_t*) calloc(1, sizeof(mraa_rockchip_groupinfo_t));
+	groupinfo->group = group;
+	if (bankinfo->register_file == MRAA_ROCKCHIP_PMU) {
+		groupinfo->iomux_address = MRAA_ROCKPI4_PMU_REGISTER + MRAA_ROCKPI4_PMU_REGISTER_OFFSET_START + bankinfo->bank * 16 + group * MRAA_ROCKPI4_PMU_REGISTER_OFFSET;
+	} else if (bankinfo->register_file == MRAA_ROCKCHIP_GRF) {
+		groupinfo->iomux_address = MRAA_ROCKPI4_GRF_REGISTER + MRAA_ROCKPI4_GRF_REGISTER_OFFSET_START + (bankinfo->bank - MRAA_ROCKPI4_PMU_BANK_COUNT) * 16 + group * MRAA_ROCKPI4_GRF_REGISTER_OFFSET;
 
-static int get_bit_at_pos(uint32_t register_value, int offset) {
+	} else {
+		free(groupinfo);
+		return MRAA_ERROR_INVALID_HANDLE;
+	}
+	groupinfo->name = &MRAA_ROCKPI4_GPIO_GROUPS[group];
+	return MRAA_SUCCESS;
+}
+static int mraa_rockchip_register_get_bit(uint32_t register_value, int offset) {
 	return ((register_value) >> (offset)) & 1;
 }
-static void register_value_active_low(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit, uint32_t write_enable_bit) {
+static void mraa_rockchip_register_active_low(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit, uint32_t write_enable_bit) {
 	int enable_mask = 0;
 	int write_enable_mask = 0;
 	enable_mask = bits<<enable_bit;
@@ -372,7 +420,7 @@ static void register_value_active_low(volatile uint32_t* register_value, uint8_t
 	*register_value &= enable_mask;
 	*register_value |= write_enable_mask;
 }
-static void register_value_active_high(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit, uint32_t write_enable_bit) {
+static void mraa_rockchip_register_active_high(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit, uint32_t write_enable_bit) {
 	int enable_mask = 0;
 	int write_enable_mask = 0;
 	enable_mask = bits<<enable_bit;
@@ -380,7 +428,7 @@ static void register_value_active_high(volatile uint32_t* register_value, uint8_
 	*register_value |= enable_mask;
 	*register_value |= write_enable_mask;
 }
-static void set_gpio_value(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit) {
+static void mraa_rockchip_set_gpio_value(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit) {
 	int enable_mask = 0;
 	if (bits) {
 		enable_mask = bits<<enable_bit;
@@ -391,7 +439,7 @@ static void set_gpio_value(volatile uint32_t* register_value, uint8_t bits, uint
 		*register_value &= enable_mask;
 	}
 }
-static mraa_result_t mmap_clock() {
+static mraa_result_t mraa_rockchip_mmap_clock() {
 	if (mmap_reg_clock == NULL) {
 		if ((mmap_fd_clock = open(MMAP_PATH, O_RDWR)) < 0) {
 			syslog(LOG_ERR, "rockpi4 mmap: unable to open /dev/mem for CLOCK ENABLE");
@@ -407,7 +455,7 @@ static mraa_result_t mmap_clock() {
 	}
 	return MRAA_SUCCESS;
 }
-static mraa_result_t unmap_clock() {
+static mraa_result_t mraa_rockchip_unmap_clock() {
 	if (mmap_reg_clock != NULL) {
 		munmap(mmap_reg_clock, mmap_size);
 		mmap_reg_clock = NULL;
@@ -415,16 +463,16 @@ static mraa_result_t unmap_clock() {
 	}
 	return MRAA_SUCCESS;
 }
-static void set_clock_state(mraa_rockchip_bankinfo_t* bankinfo, mraa_boolean_t enable) {
+static void mraa_rockchip_set_clock_state(mraa_rockchip_bankinfo_t* bankinfo, mraa_boolean_t enable) {
 	if (enable) {
-		register_value_active_low(&mmap_reg_clock, MRAA_ROCKPI4_CLOCK_MASK, (bankinfo->bank + 1), (bankinfo->bank + 1 + MRAA_ROCKPI4_WRITE_ENABLE_BIT_OFFSET));
+		mraa_rockchip_register_active_low(&mmap_reg_clock, MRAA_ROCKPI4_CLOCK_MASK, (bankinfo->bank + 1), (bankinfo->bank + 1 + MRAA_ROCKPI4_WRITE_ENABLE_BIT_OFFSET));
 	} else {
-		register_value_active_high(&mmap_reg_clock, MRAA_ROCKPI4_CLOCK_MASK, (bankinfo->bank + 1), (bankinfo->bank + 1 + MRAA_ROCKPI4_WRITE_ENABLE_BIT_OFFSET));
+		mraa_rockchip_register_active_high(&mmap_reg_clock, MRAA_ROCKPI4_CLOCK_MASK, (bankinfo->bank + 1), (bankinfo->bank + 1 + MRAA_ROCKPI4_WRITE_ENABLE_BIT_OFFSET));
 	}
 
 }
-static mraa_boolean_t is_clock_disabled(mraa_rockchip_bankinfo_t* bankinfo) {
+static mraa_boolean_t mraa_rockchip_is_clock_disabled(mraa_rockchip_bankinfo_t* bankinfo) {
 	uint32_t register_value = *(volatile uint32_t*) (mmap_reg_clock);
-	return get_bit_at_pos(register_value, bankinfo->bank + 1);
+	return mraa_rockchip_register_get_bit(register_value, bankinfo->bank + 1);
 }
 

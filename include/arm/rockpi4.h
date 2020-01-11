@@ -35,7 +35,9 @@ extern "C" {
 #define MRAA_ROCKPI4_SWPORTA_DDR_OFFSET			0x0004
 #define MRAA_ROCKPI4_EXT_PORTA_OFFSET			0x0050
 #define MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT		8
+#define MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT		32
 #define MRAA_ROCKPI4_GPIO_BANK_COUNT			5
+#define MRAA_ROCKPI4_INTERNAL_PIN_COUNT		    160
 #define MRAA_ROCKPI4_WRITE_ENABLE_BIT_OFFSET	16
 #define MRAA_ROCKPI4_IOMUX_GPIO_MASK			0x03
 #define MRAA_ROCKPI4_CLOCK_MASK					0x01
@@ -55,16 +57,6 @@ const uint8_t MRAA_ROCKPI4_GPIO_GRF_BANKS[] = {2, 3, 4};
 #define MRAA_ROCKPI4_GRF_BANK_COUNT  ((uint8_t)sizeof(MRAA_ROCKPI4_GPIO_GRF_BANKS) / sizeof(MRAA_ROCKPI4_GPIO_GRF_BANKS[0]))
 #define MRAA_ROCKPI4_PMU_BANK_COUNT  ((uint8_t)sizeof(MRAA_ROCKPI4_GPIO_PMU_BANKS) / sizeof(MRAA_ROCKPI4_GPIO_PMU_BANKS[0]))
 
-mraa_board_t *
-        mraa_rockpi4();
-static int get_bit_at_pos(uint32_t register_value, int offset);
-static void register_value_active_low(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit, uint32_t write_enable_bit);
-static void register_value_active_high(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit, uint32_t write_enable_bit);
-static void set_gpio_value(volatile uint32_t* gpio_value, uint8_t bits, uint32_t enable_bit);
-static mraa_result_t mmap_clock();
-static void set_clock_state(mraa_rockchip_bankinfo_t* bankinfo, mraa_boolean_t enable);
-static mraa_boolean_t is_clock_disabled(mraa_rockchip_bankinfo_t* bankinfo);
-
 typedef enum {
 	MRAA_ROCKCHIP_GRF = 0,
 	MRAA_ROCKCHIP_PMU = 1
@@ -77,7 +69,7 @@ typedef enum {
 
 typedef struct {
 	uint8_t bank;
-	uint32_t* address;
+	const uint32_t* address;
 	uint32_t iomux_address;
 	mraa_rockchip_register_file_t* register_file;
 	mraa_rockchip_clock_state_t* default_clock_state;
@@ -85,11 +77,28 @@ typedef struct {
 } mraa_rockchip_bankinfo_t;
 
 typedef struct {
-	int pin;
-	mraa_rockchip_bankinfo_t* bankinfo;
 	uint8_t group;
-	char* group_name;
+	const char* name;
+	uint32_t iomux_address;
+} mraa_rockchip_groupinfo_t;
+
+typedef struct {
+	uint8_t pin;
+	mraa_rockchip_bankinfo_t* bankinfo;
+	mraa_rockchip_groupinfo_t* groupinfo;
 } mraa_rockchip_pininfo_t;
+
+mraa_board_t *
+        mraa_rockpi4();
+static int get_bit_at_pos(uint32_t register_value, int offset);
+static void register_value_active_low(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit, uint32_t write_enable_bit);
+static void register_value_active_high(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit, uint32_t write_enable_bit);
+static void set_gpio_value(volatile uint32_t* gpio_value, uint8_t bits, uint32_t enable_bit);
+static mraa_result_t mmap_clock();
+static void set_clock_state(mraa_rockchip_bankinfo_t* bankinfo, mraa_boolean_t enable);
+static mraa_boolean_t is_clock_disabled(mraa_rockchip_bankinfo_t* bankinfo);
+
+
 
 
 #ifdef __cplusplus
