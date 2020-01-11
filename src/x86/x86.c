@@ -24,6 +24,7 @@
 #include "x86/intel_joule_expansion.h"
 #include "x86/iei_tank.h"
 #include "x86/intel_adlink_lec_al.h"
+#include "x86/up_xtreme.h"
 
 mraa_platform_t
 mraa_x86_platform()
@@ -98,6 +99,9 @@ mraa_x86_platform()
 	    } else if ((strncasecmp(line, "LEC-AL", strlen("LEC-AL") + 1) == 0) ) {
                 platform_type = MRAA_ADLINK_LEC_AL;
                 plat = mraa_lec_al_board();
+            } else if (strncasecmp(line, "UP-WHL01", strlen("UP-WHL01") + 1) == 0) {
+                platform_type = MRAA_UPXTREME;
+                plat = mraa_upxtreme_board();
             } else {
                 syslog(LOG_ERR, "Platform not supported, not initialising");
                 platform_type = MRAA_UNKNOWN_PLATFORM;
@@ -122,7 +126,7 @@ mraa_x86_platform()
     if( (fd = open("/sys/devices/virtual/dmi/id/product_name", O_RDONLY)) != -1) {
 	    syslog(LOG_ERR, "Checking additional Platform support for LEC-AL iPI");
 	    if(read(fd, buffer, 10) > 0) {
-		    if ((strncasecmp(buffer, "LEC-ALAI", strlen("LEC-ALAI")) == 0)) {
+		    if ((strncasecmp(buffer, "LEC-AL-AI", strlen("LEC-AL-AI")) == 0)) {
 			    syslog(LOG_ERR, "LEC-AL AI IPi found. starting MRAA");
 			    platform_type = MRAA_ADLINK_LEC_AL_AI;
 			    plat = mraa_lec_al_board();
@@ -162,6 +166,8 @@ mraa_x86_platform()
     plat = mraa_joule_expansion_board();
     #elif defined(xMRAA_IEI_TANK)
     plat = mraa_iei_tank();
+    #elif defined(xMRAA_UPXTREME)
+    plat = mraa_upxtreme_board();
     #else
         #error "Not using a valid platform value from mraa_platform_t - cannot compile"
     #endif
