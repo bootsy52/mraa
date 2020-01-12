@@ -344,18 +344,14 @@ static mraa_rockchip_pininfo_t* mraa_rockchip_setup(uint8_t pin) {
 			return pins[pin];
 		}
 		bank = pin / MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT;
+		group = (pin - bank * MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT) / MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT;
 		if (banks[bank] == NULL) {
 			banks[bank] =  (mraa_rockchip_bankinfo_t*) calloc(1, sizeof(mraa_rockchip_bankinfo_t));
 			mraa_rockchip_setup_bank(banks[bank], bank);
 		}
 		pins[pin]->bankinfo = banks[bank];
 		pins[pin]->pin = (pin - bank * MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT) % MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT;
-		group = (pin - bank * MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT) / MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT;
-		if (groups[group] == NULL) {
-			groups[group] = (mraa_rockchip_groupinfo_t*) calloc(1, sizeof(mraa_rockchip_groupinfo_t));
-			mraa_rockchip_setup_group(banks[bank], groups[group], group);
-		}
-		pins[pin]->groupinfo = groups[group];
+		pins[pin]->groupinfo = banks[bank]->groups[group];
 		return pins[pin];
 }
 static mraa_result_t mraa_rockchip_setup_bank(mraa_rockchip_bankinfo_t* bankinfo, uint8_t bank) {
@@ -380,6 +376,11 @@ static mraa_result_t mraa_rockchip_setup_bank(mraa_rockchip_bankinfo_t* bankinfo
 	    	syslog(LOG_ERR, "rockpi4 mmap: bank is invalid");
 	    	return MRAA_ERROR_INVALID_HANDLE;
 	    }
+
+	 for (int i = 0; i < MRAA_ROCKPI4_GPIO_GROUP_COUNT; i++) {
+		 mraa_rockchip_groupinfo_t* groupinfo[i];
+		 mraa_rockchip_setup_group(bankinfo, groupinfo[i], i);
+	 }
 	 return MRAA_SUCCESS;
 }
 static mraa_result_t mraa_rockchip_setup_group(mraa_rockchip_bankinfo_t* bankinfo, mraa_rockchip_groupinfo_t* groupinfo, uint8_t group) {
