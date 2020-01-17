@@ -90,15 +90,6 @@ typedef struct {
 
 mraa_board_t *
         mraa_rockpi4();
-static int get_bit_at_pos(uint32_t register_value, int offset);
-static void register_value_active_low(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit, uint32_t write_enable_bit);
-static void register_value_active_high(volatile uint32_t* register_value, uint8_t bits, uint32_t enable_bit, uint32_t write_enable_bit);
-static void set_gpio_value(volatile uint32_t* gpio_value, uint8_t bits, uint32_t enable_bit);
-static mraa_result_t mmap_clock();
-static void set_clock_state(mraa_rockchip_bankinfo_t* bankinfo, mraa_boolean_t enable);
-static mraa_boolean_t is_clock_disabled(mraa_rockchip_bankinfo_t* bankinfo);
-
-
 
 
 #ifdef __cplusplus
