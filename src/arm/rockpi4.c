@@ -25,6 +25,16 @@
 #define PLATFORM_NAME_ROCK_PI_4B "ROCK PI 4B"
 #define MAX_SIZE 64
 #define MMAP_PATH "/dev/mem"
+/*
+ * GPIO0 .. GPIO4
+ */
+
+const uint32_t MRAA_ROCKPI4_GPIO_BANK_ADDRESSES[] = {0xFF720000, 0xFF730000, 0xFF780000, 0xFF788000, 0xFF790000};
+const uint8_t MRAA_ROCKPI4_GPIO_PMU_BANKS[]       = {0, 1};
+const uint8_t MRAA_ROCKPI4_GPIO_GRF_BANKS[]       = {2, 3, 4};
+const uint8_t MRAA_ROCKPI4_GPIO_BANK_COUNT	      = ((uint8_t)sizeof(MRAA_ROCKPI4_GPIO_BANK_ADDRESSES)/sizeof(MRAA_ROCKPI4_GPIO_BANK_ADDRESSES[0]));
+const uint8_t MRAA_ROCKPI4_GRF_BANK_COUNT  	      = ((uint8_t)sizeof(MRAA_ROCKPI4_GPIO_GRF_BANKS) / sizeof(MRAA_ROCKPI4_GPIO_GRF_BANKS[0]));
+const uint8_t MRAA_ROCKPI4_PMU_BANK_COUNT  	      = ((uint8_t)sizeof(MRAA_ROCKPI4_GPIO_PMU_BANKS) / sizeof(MRAA_ROCKPI4_GPIO_PMU_BANKS[0]));
 
 const char* rockpi4_serialdev[MRAA_ROCKPI4_UART_COUNT] = { "/dev/ttyS2","/dev/ttyS4"};
 // MMAP
@@ -35,8 +45,8 @@ static int mmap_fd[MRAA_ROCKPI4_GPIO_BANK_COUNT] = {0};
 static int mmap_fd_iomux = 0;
 static int mmap_fd_clock = 0;
 static int mmap_size = 4096UL;
-static mraa_rockchip_pininfo_t* mraa_rockpi4_pinmap[MRAA_ROCKPI4_PIN_COUNT] = {NULL};
-static mraa_rockchip_bankinfo_t* banks[MRAA_ROCKPI4_GPIO_BANK_COUNT] = {NULL};
+mraa_rockchip_pininfo_t* mraa_rockpi4_pinmap[MRAA_ROCKPI4_PIN_COUNT] = {NULL};
+mraa_rockchip_bankinfo_t* banks[MRAA_ROCKPI4_GPIO_BANK_COUNT] = {NULL};
 static unsigned int mmap_count_bank[MRAA_ROCKPI4_GPIO_BANK_COUNT] = {0};
 static unsigned int mmap_count = 0;
 
@@ -166,9 +176,9 @@ static mraa_result_t mraa_rockchip_unmap_clock() {
 }
 static void mraa_rockchip_set_clock_state(mraa_rockchip_bankinfo_t* bankinfo, mraa_boolean_t enable) {
 	if (enable) {
-		mraa_rockchip_register_active_low(&mmap_reg_clock, MRAA_ROCKPI4_CLOCK_MASK, (bankinfo->bank + 1), (bankinfo->bank + 1 + MRAA_ROCKPI4_WRITE_ENABLE_BIT_OFFSET));
+		mraa_rockchip_register_active_low((volatile uint32_t*)mmap_reg_clock, MRAA_ROCKPI4_CLOCK_MASK, (bankinfo->bank + 1), (bankinfo->bank + 1 + MRAA_ROCKPI4_WRITE_ENABLE_BIT_OFFSET));
 	} else {
-		mraa_rockchip_register_active_high(&mmap_reg_clock, MRAA_ROCKPI4_CLOCK_MASK, (bankinfo->bank + 1), (bankinfo->bank + 1 + MRAA_ROCKPI4_WRITE_ENABLE_BIT_OFFSET));
+		mraa_rockchip_register_active_high((volatile uint32_t*)mmap_reg_clock, MRAA_ROCKPI4_CLOCK_MASK, (bankinfo->bank + 1), (bankinfo->bank + 1 + MRAA_ROCKPI4_WRITE_ENABLE_BIT_OFFSET));
 	}
 
 }
@@ -205,13 +215,18 @@ mraa_rockpi4_mmap_unsetup(int bank)
 static mraa_result_t mraa_rockchip_setup(mraa_rockchip_pininfo_t* pins[MRAA_ROCKPI4_PIN_COUNT], uint8_t pin) {
 		uint8_t bank;
 		uint8_t group;
-		if (!pins[pin]) {
+		syslog(LOG_NOTICE, "rockchip setup pin %u, %u", pin, pins[pin]);
+		if (pins[pin] == NULL) {
+			syslog(LOG_NOTICE, "PIN Allocate memory");
 			pins[pin] = (mraa_rockchip_pininfo_t*) calloc(1, sizeof(mraa_rockchip_pininfo_t));
 		} else {
 			return MRAA_SUCCESS;
 		}
+
+		pins[pin] = (mraa_rockchip_pininfo_t*) calloc(1, sizeof(mraa_rockchip_pininfo_t));
 		bank = pin / MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT;
 		group = (pin - bank * MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT) / MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT;
+		syslog(LOG_NOTICE, "banks[bank] %s", banks[bank]);
 		if (banks[bank] == NULL) {
 			banks[bank] =  (mraa_rockchip_bankinfo_t*) calloc(1, sizeof(mraa_rockchip_bankinfo_t));
 			mraa_rockchip_setup_bank(banks[bank], bank);
@@ -223,6 +238,7 @@ static mraa_result_t mraa_rockchip_setup(mraa_rockchip_pininfo_t* pins[MRAA_ROCK
 		pins[pin]->bankinfo = banks[bank];
 		pins[pin]->pin = (pin - bank * MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT) % MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT;
 		pins[pin]->groupinfo = banks[bank]->groups[group];
+		printf("Setup of pin %u, bank %u and group %u done", pins[pin]->pin, pins[pin]->bankinfo->bank, pins[pin]->groupinfo->group);
 		return MRAA_SUCCESS;
 }
 
@@ -265,6 +281,7 @@ mraa_rockpi4_mmap_read(mraa_gpio_context dev)
 mraa_result_t
 mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
 {
+	syslog(LOG_NOTICE, "mmap setup");
     if (dev == NULL) {
         syslog(LOG_ERR, "rockpi4 mmap: context not valid");
         return MRAA_ERROR_INVALID_HANDLE;
@@ -318,9 +335,9 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
     			return result;
     	}
     	if (mraa_rockchip_is_clock_disabled(mraa_rockpi4_pinmap[pin]->bankinfo)) {
-    		mraa_rockpi4_pinmap[pin]->bankinfo->default_clock_state = MRAA_ROCKCHIP_CLOCK_DISABLED;
+    		*mraa_rockpi4_pinmap[pin]->bankinfo->default_clock_state = MRAA_ROCKCHIP_CLOCK_DISABLED;
     		mraa_rockchip_set_clock_state(mraa_rockpi4_pinmap[pin]->bankinfo, 1);
-    		mraa_rockpi4_pinmap[pin]->bankinfo->clock_state = MRAA_ROCKCHIP_CLOCK_ENABLED;
+    		*mraa_rockpi4_pinmap[pin]->bankinfo->clock_state = MRAA_ROCKCHIP_CLOCK_ENABLED;
     	}
     }
 
@@ -338,7 +355,7 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
      }
     iomux_bit = dev->pin * 2;
     iomux_write_enable = iomux_bit + MRAA_ROCKPI4_WRITE_ENABLE_BIT_OFFSET;
-    mraa_rockchip_register_active_low(&mmap_reg_iomux, MRAA_ROCKPI4_IOMUX_GPIO_MASK, iomux_bit, iomux_write_enable);
+    mraa_rockchip_register_active_low((volatile uint32_t*)mmap_reg_iomux, MRAA_ROCKPI4_IOMUX_GPIO_MASK, iomux_bit, iomux_write_enable);
     munmap(mmap_reg_iomux, mmap_size);
     mmap_reg_iomux = NULL;
     close(mmap_fd_iomux);
@@ -347,9 +364,6 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
     	mraa_rockchip_set_clock_state(mraa_rockpi4_pinmap[pin]->bankinfo, 0);
     	*mraa_rockpi4_pinmap[pin]->bankinfo->clock_state = MRAA_ROCKCHIP_CLOCK_DISABLED;
     }
-
-    mraa_rockchip_pininfo_t rockchip_pininfo = (mraa_rockchip_pininfo_t*) calloc(1, sizeof(mraa_rockchip_pininfo_t));
-    mraa_rockpi4_pinmap[dev->phy_pin] = rockchip_pininfo;
 
     dev->mmap_write = &mraa_rockpi4_mmap_write;
     dev->mmap_read = &mraa_rockpi4_mmap_read;
@@ -362,6 +376,12 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
 mraa_board_t*
 mraa_rockpi4()
 {
+	for (int i = 0; i < sizeof(mraa_rockpi4_pinmap)/sizeof(mraa_rockpi4_pinmap[0]); i++) {
+			mraa_rockpi4_pinmap[i] = (mraa_rockchip_pininfo_t*) calloc(1, sizeof(mraa_rockchip_pininfo_t));
+		}
+	for (int i = 0; i < sizeof(banks)/sizeof(banks[0]); i++) {
+			banks[i] = (mraa_rockchip_bankinfo_t*) calloc(1, sizeof(mraa_rockchip_bankinfo_t));
+		}
     mraa_board_t* b = (mraa_board_t*) calloc(1, sizeof(mraa_board_t));
     if (b == NULL) {
         return NULL;
@@ -372,6 +392,7 @@ mraa_rockpi4()
         free(b);
         return NULL;
     }
+    b->adv_func->gpio_mmap_setup = &mraa_rockpi4_mmap_setup;
 
     // pin mux for buses are setup by default by kernel so tell mraa to ignore them
     b->no_bus_mux = 1;
