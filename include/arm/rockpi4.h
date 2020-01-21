@@ -50,6 +50,7 @@ static const uint8_t MRAA_ROCKPI4_GPIO_GROUP_COUNT	      = ((uint8_t)sizeof(MRAA
 
 
 typedef enum {
+	MRAA_ROCKCHIP_REG_FILE_INVALID = -1,
 	MRAA_ROCKCHIP_GRF = 0,
 	MRAA_ROCKCHIP_PMU = 1
 } mraa_rockchip_register_file_t;
@@ -68,10 +69,10 @@ typedef struct {
 typedef struct {
 	uint8_t bank;
 	const uint32_t* address;
-	mraa_rockchip_groupinfo_t* groups[MRAA_ROCKPI4_GPIO_GROUP_COUNT];
-	mraa_rockchip_register_file_t* register_file;
-	mraa_rockchip_clock_state_t* default_clock_state;
-	mraa_rockchip_clock_state_t* clock_state;
+	mraa_rockchip_groupinfo_t groups[MRAA_ROCKPI4_GPIO_GROUP_COUNT];
+	mraa_rockchip_register_file_t register_file;
+	mraa_rockchip_clock_state_t default_clock_state;
+	mraa_rockchip_clock_state_t clock_state;
 } mraa_rockchip_bankinfo_t;
 
 typedef struct {
