@@ -141,6 +141,58 @@ static mraa_boolean_t mraa_rockchip_is_clock_disabled(mraa_rockchip_bankinfo_t* 
 	uint32_t register_value = *(volatile uint32_t*) (mmap_reg_clock);
 	return mraa_rockchip_register_get_bit(register_value, bankinfo->bank + 1);
 }
+static mraa_result_t is_pin_valid(int8_t pin) {
+	if (pin == -1) {
+	      return MRAA_ERROR_INVALID_HANDLE;
+	    }
+    if (plat->pins[pin].gpio.pinmap == -1) {
+    	return MRAA_ERROR_INVALID_HANDLE;
+    }
+    return MRAA_SUCCESS;
+}
+
+mraa_result_t
+mraa_rockpi4_mmap_write(mraa_gpio_context dev, int value)
+{
+	if (is_pin_valid(dev->pin) != MRAA_SUCCESS) {
+		return MRAA_ERROR_INVALID_HANDLE;
+	}
+    uint32_t address = *mraa_rockpi4_pinmap[dev->pin]->bankinfo->address;
+    uint8_t  bank = mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank;
+    uint8_t  group = mraa_rockpi4_pinmap[dev->pin]->groupinfo->group;
+    uint32_t register_value_direction;
+    uint32_t register_value;
+    register_value_direction = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_SWPORTA_DDR_OFFSET);
+    register_value = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_SWPORTA_DR_OFFSET);
+    if (address == 0 || bank == 0 || group == 0) {
+    	syslog(LOG_ERR, "rockpi4 mmap: pin not initialized for mmap write");
+    	return MRAA_ERROR_INVALID_RESOURCE;
+    }
+    register_value_direction = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_SWPORTA_DDR_OFFSET);
+    register_value = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_SWPORTA_DR_OFFSET);
+    mraa_rockchip_set_gpio_value(&register_value_direction, MRAA_ROCKPI4_GPIO_DIRECTION_OUT, group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT + mraa_rockpi4_pinmap[dev->pin]->rockchip_pin);
+    mraa_rockchip_set_gpio_value(&register_value, value, group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT + mraa_rockpi4_pinmap[dev->pin]->rockchip_pin);
+
+    return MRAA_SUCCESS;
+}
+
+int
+mraa_rockpi4_mmap_read(mraa_gpio_context dev)
+{
+	syslog(LOG_NOTICE, "mmap_read pin is: %d", dev->pin);
+	if (is_pin_valid(dev->pin) != MRAA_SUCCESS) {
+		return MRAA_ERROR_INVALID_HANDLE;
+	}
+    uint32_t value;
+    uint8_t  bank = mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank;
+    uint8_t  group = mraa_rockpi4_pinmap[dev->pin]->groupinfo->group;
+    value = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_EXT_PORTA_OFFSET);
+    if (mraa_rockchip_register_get_bit(value, group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT + mraa_rockpi4_pinmap[dev->pin]->rockchip_pin)) {
+    	return 1;
+    } else {
+    	return 0;
+    }
+}
 static mraa_result_t
 mraa_rockpi4_mmap_unsetup(int bank)
 {
@@ -166,56 +218,19 @@ mraa_rockpi4_mmap_unsetup(int bank)
     }
     return MRAA_SUCCESS;
 }
-
-mraa_result_t
-mraa_rockpi4_mmap_write(mraa_gpio_context dev, int value)
-{
-    uint32_t address = *mraa_rockpi4_pinmap[dev->phy_pin]->bankinfo->address;
-    uint8_t  bank = mraa_rockpi4_pinmap[dev->phy_pin]->bankinfo->bank;
-    uint8_t  group = mraa_rockpi4_pinmap[dev->phy_pin]->groupinfo->group;
-    uint32_t register_value_direction;
-    uint32_t register_value;
-    register_value_direction = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_SWPORTA_DDR_OFFSET);
-    register_value = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_SWPORTA_DR_OFFSET);
-    if (address == 0 || bank == 0 || group == 0) {
-    	syslog(LOG_ERR, "rockpi4 mmap: pin not initialized for mmap write");
-    	return MRAA_ERROR_INVALID_RESOURCE;
-    }
-    register_value_direction = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_SWPORTA_DDR_OFFSET);
-    register_value = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_SWPORTA_DR_OFFSET);
-    mraa_rockchip_set_gpio_value(&register_value_direction, MRAA_ROCKPI4_GPIO_DIRECTION_OUT, group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT + dev->pin);
-    mraa_rockchip_set_gpio_value(&register_value, value, group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT + dev->pin);
-
-    return MRAA_SUCCESS;
-}
-
-int
-mraa_rockpi4_mmap_read(mraa_gpio_context dev)
-{
-    uint32_t value;
-    uint8_t  bank = mraa_rockpi4_pinmap[dev->phy_pin]->bankinfo->bank;
-    uint8_t  group = mraa_rockpi4_pinmap[dev->phy_pin]->groupinfo->group;
-    value = *(volatile uint32_t*) (mmap_reg[bank] + MRAA_ROCKPI4_EXT_PORTA_OFFSET);
-    if (mraa_rockchip_register_get_bit(value, group * MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT + dev->pin)) {
-    	return 1;
-    } else {
-    	return 0;
-    }
-}
-
 static mraa_result_t mraa_rockchip_setup_group(mraa_rockchip_bankinfo_t* bankinfo, uint8_t group) {
-	bankinfo->groups[group]->group = group;
+	bankinfo->groups[group].group = group;
 	syslog(LOG_NOTICE, "setup_group Group is: %u", group);
 	if (bankinfo->register_file == MRAA_ROCKCHIP_PMU) {
-		bankinfo->groups[group]->iomux_address = MRAA_ROCKPI4_PMU_REGISTER + MRAA_ROCKPI4_PMU_REGISTER_OFFSET_START + bankinfo->bank * 16 + group * MRAA_ROCKPI4_PMU_REGISTER_OFFSET;
+		bankinfo->groups[group].iomux_address = MRAA_ROCKPI4_PMU_REGISTER + MRAA_ROCKPI4_PMU_REGISTER_OFFSET_START + bankinfo->bank * 16 + group * MRAA_ROCKPI4_PMU_REGISTER_OFFSET;
 	} else if (bankinfo->register_file == MRAA_ROCKCHIP_GRF) {
-		bankinfo->groups[group]->iomux_address = MRAA_ROCKPI4_GRF_REGISTER + MRAA_ROCKPI4_GRF_REGISTER_OFFSET_START + (bankinfo->bank - MRAA_ROCKPI4_PMU_BANK_COUNT) * 16 + group * MRAA_ROCKPI4_GRF_REGISTER_OFFSET;
+		bankinfo->groups[group].iomux_address = MRAA_ROCKPI4_GRF_REGISTER + MRAA_ROCKPI4_GRF_REGISTER_OFFSET_START + (bankinfo->bank - MRAA_ROCKPI4_PMU_BANK_COUNT) * 16 + group * MRAA_ROCKPI4_GRF_REGISTER_OFFSET;
 
 	} else {
-		free(bankinfo->groups[group]);
+		//free(bankinfo->groups[group]);
 		return MRAA_ERROR_INVALID_HANDLE;
 	}
-	bankinfo->groups[group]->name = &MRAA_ROCKPI4_GPIO_GROUPS[group];
+	bankinfo->groups[group].name = &MRAA_ROCKPI4_GPIO_GROUPS[group];
 	return MRAA_SUCCESS;
 }
 static mraa_result_t mraa_rockchip_setup_bank(mraa_rockchip_bankinfo_t* bankinfo, uint8_t bank) {
@@ -240,7 +255,7 @@ static mraa_result_t mraa_rockchip_setup_bank(mraa_rockchip_bankinfo_t* bankinfo
 	    	return MRAA_ERROR_INVALID_HANDLE;
 	    }
 	 for (int i = 0; i < MRAA_ROCKPI4_GPIO_GROUP_COUNT; i++) {
-		 bankinfo->groups[i] = (mraa_rockchip_groupinfo_t *) calloc(1, sizeof(mraa_rockchip_groupinfo_t));
+		// bankinfo->groups[i] = (mraa_rockchip_groupinfo_t *) calloc(1, sizeof(mraa_rockchip_groupinfo_t));
 		 if (mraa_rockchip_setup_group(bankinfo, i) != MRAA_SUCCESS) {
 			 free(bankinfo);
 			 return MRAA_ERROR_INVALID_HANDLE;
@@ -248,7 +263,7 @@ static mraa_result_t mraa_rockchip_setup_bank(mraa_rockchip_bankinfo_t* bankinfo
 	 }
 	 return MRAA_SUCCESS;
 }
-static mraa_result_t mraa_rockchip_setup(mraa_rockchip_pininfo_t* pinmap, uint8_t pin) {
+static mraa_result_t mraa_rockchip_setup(mraa_rockchip_pininfo_t* pinmap, uint16_t pin) {
 		uint8_t bank;
 		uint8_t group;
 		syslog(LOG_NOTICE, "rockchip setup pin %d", pin);
@@ -264,41 +279,30 @@ static mraa_result_t mraa_rockchip_setup(mraa_rockchip_pininfo_t* pinmap, uint8_
 		}
 
 		pinmap->bankinfo = banks[bank];
-		pinmap->pin = (pin - bank * MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT) % MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT;
-		pinmap->groupinfo = banks[bank]->groups[group];
-		syslog(LOG_NOTICE, "Setup of pin %u, bank %u and group %u done", pinmap->pin, pinmap->bankinfo->bank, pinmap->groupinfo->group);
+		pinmap->rockchip_pin = (pin - bank * MRAA_ROCKPI4_GPIO_BANK_PIN_COUNT) % MRAA_ROCKPI4_GPIO_GROUP_PIN_COUNT;
+		pinmap->groupinfo = &banks[bank]->groups[group];
+		syslog(LOG_NOTICE, "Setup of pin %u, bank %u and group %u done", pinmap->rockchip_pin, pinmap->bankinfo->bank, pinmap->groupinfo->group);
 		return MRAA_SUCCESS;
 }
 
 mraa_result_t
 mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
 {
-	syslog(LOG_NOTICE, "mmap setup");
+	uint8_t iomux_bit = 0;
+	uint8_t iomux_write_enable = 0;
+
+	syslog(LOG_NOTICE, "mmap setup pin: %d, line: %d", dev->pin, dev->phy_pin);
     if (dev == NULL) {
         syslog(LOG_ERR, "rockpi4 mmap: context not valid");
         return MRAA_ERROR_INVALID_HANDLE;
     }
-    if (dev->pin == -1) {
-    	return MRAA_ERROR_INVALID_HANDLE;
-    }
-	uint8_t iomux_bit = 0;
-	uint8_t iomux_write_enable = 0;
-	int8_t phy_pin = -1;
-   	for (int i = 0; i < MRAA_ROCKPI4_PIN_COUNT; i++) {
-   		    if (plat->pins[i].gpio.pinmap == dev->pin) {
-   		    	syslog(LOG_NOTICE, "Found physical pin: %d", i);
-   		    	phy_pin = i;
-   		    	if (mraa_rockpi4_pinmap[i] == NULL) {
-   	   		    	mraa_rockpi4_pinmap[i] = (mraa_rockchip_pininfo_t*) calloc(1, sizeof(mraa_rockchip_pininfo_t));
-   	   		    	mraa_rockchip_setup(mraa_rockpi4_pinmap[i], dev->pin);
-   		    	}
-   		      break;
-   		    }
- 		}
-     if (phy_pin == -1) {
-    	 syslog(LOG_NOTICE, "Physical Pin is -1");
-    	 return MRAA_ERROR_INVALID_HANDLE;
-     }
+    if (is_pin_valid(dev->pin) != MRAA_SUCCESS) {
+    		return MRAA_ERROR_INVALID_HANDLE;
+      }
+	if (mraa_rockpi4_pinmap[dev->pin] == NULL) {
+	   	mraa_rockpi4_pinmap[dev->pin] = (mraa_rockchip_pininfo_t*) calloc(1, sizeof(mraa_rockchip_pininfo_t));
+	   	mraa_rockchip_setup(mraa_rockpi4_pinmap[dev->pin], plat->pins[dev->pin].gpio.pinmap);
+	}
     /* disable mmap if already enabled */
     if (enable == 0) {
         if (dev->mmap_write == NULL && dev->mmap_read == NULL) {
@@ -307,10 +311,10 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
         }
         dev->mmap_write = NULL;
         dev->mmap_read = NULL;
-        mmap_count_bank[mraa_rockpi4_pinmap[phy_pin]->bankinfo->bank]--;
+        mmap_count_bank[mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank]--;
         mmap_count--;
-        if (mmap_count_bank[mraa_rockpi4_pinmap[phy_pin]->bankinfo->bank] == 0) {
-            return mraa_rockpi4_mmap_unsetup(mraa_rockpi4_pinmap[phy_pin]->bankinfo->bank);
+        if (mmap_count_bank[mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank] == 0) {
+            return mraa_rockpi4_mmap_unsetup(mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank);
         }
         return MRAA_SUCCESS;
     }
@@ -320,31 +324,31 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
         return MRAA_ERROR_INVALID_PARAMETER;
     }
 
-    if (mmap_reg[mraa_rockpi4_pinmap[phy_pin]->bankinfo->bank] == NULL) {
-        if ((mmap_fd[mraa_rockpi4_pinmap[phy_pin]->bankinfo->bank] = open(MMAP_PATH, O_RDWR)) < 0) {
+    if (mmap_reg[mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank] == NULL) {
+        if ((mmap_fd[mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank] = open(MMAP_PATH, O_RDWR)) < 0) {
             syslog(LOG_ERR, "rockpi4 mmap: unable to open %s", MMAP_PATH);
             return MRAA_ERROR_INVALID_HANDLE;
         }
-        mmap_reg[mraa_rockpi4_pinmap[phy_pin]->bankinfo->bank] = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, mmap_fd[mraa_rockpi4_pinmap[phy_pin]->bankinfo->bank], *mraa_rockpi4_pinmap[phy_pin]->bankinfo->address);
+        mmap_reg[mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank] = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, mmap_fd[mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank], *mraa_rockpi4_pinmap[dev->pin]->bankinfo->address);
 
-        if (mmap_reg[mraa_rockpi4_pinmap[phy_pin]->bankinfo->bank] == MAP_FAILED) {
+        if (mmap_reg[mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank] == MAP_FAILED) {
             syslog(LOG_ERR, "rockpi4 mmap: failed to mmap");
-            mmap_reg[mraa_rockpi4_pinmap[phy_pin]->bankinfo->bank] = NULL;
-            close(mmap_fd[mraa_rockpi4_pinmap[phy_pin]->bankinfo->bank]);
+            mmap_reg[mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank] = NULL;
+            close(mmap_fd[mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank]);
             return MRAA_ERROR_NO_RESOURCES;
         }
     }
 
-    if (mraa_rockpi4_pinmap[phy_pin]->bankinfo->register_file == MRAA_ROCKCHIP_GRF) {
+    if (mraa_rockpi4_pinmap[dev->pin]->bankinfo->register_file == MRAA_ROCKCHIP_GRF) {
         mraa_result_t result = 	mraa_rockchip_mmap_clock();
     	if (result != MRAA_SUCCESS) {
     		syslog(LOG_ERR, "rockpi4 mmap: unable to setup clock");
     			return result;
     	}
-    	if (mraa_rockchip_is_clock_disabled(mraa_rockpi4_pinmap[phy_pin]->bankinfo)) {
-    		mraa_rockpi4_pinmap[phy_pin]->bankinfo->default_clock_state = MRAA_ROCKCHIP_CLOCK_DISABLED;
-    		mraa_rockchip_set_clock_state(mraa_rockpi4_pinmap[phy_pin]->bankinfo, 1);
-    		mraa_rockpi4_pinmap[phy_pin]->bankinfo->clock_state = MRAA_ROCKCHIP_CLOCK_ENABLED;
+    	if (mraa_rockchip_is_clock_disabled(mraa_rockpi4_pinmap[dev->pin]->bankinfo)) {
+    		mraa_rockpi4_pinmap[dev->pin]->bankinfo->default_clock_state = MRAA_ROCKCHIP_CLOCK_DISABLED;
+    		mraa_rockchip_set_clock_state(mraa_rockpi4_pinmap[dev->pin]->bankinfo, 1);
+    		mraa_rockpi4_pinmap[dev->pin]->bankinfo->clock_state = MRAA_ROCKCHIP_CLOCK_ENABLED;
     	}
     }
     if (mmap_reg_iomux == NULL) {
@@ -354,8 +358,8 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
     	}
     }
 
-    syslog(LOG_NOTICE, "IOMUX Address 0x%x", mraa_rockpi4_pinmap[phy_pin]->groupinfo->iomux_address);
-    mmap_reg_iomux = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, mmap_fd_iomux, mraa_rockpi4_pinmap[phy_pin]->groupinfo->iomux_address);
+    syslog(LOG_NOTICE, "IOMUX Address 0x%x", mraa_rockpi4_pinmap[dev->pin]->groupinfo->iomux_address);
+    mmap_reg_iomux = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, mmap_fd_iomux, mraa_rockpi4_pinmap[dev->pin]->groupinfo->iomux_address & ~((uint32_t)mmap_size-1));
     if (mmap_reg_iomux == MAP_FAILED) {
          syslog(LOG_ERR, "rockpi4 mmap: failed to mmap IOMUX");
          mmap_reg_iomux = NULL;
@@ -369,14 +373,14 @@ mraa_rockpi4_mmap_setup(mraa_gpio_context dev, mraa_boolean_t enable)
     mmap_reg_iomux = NULL;
     close(mmap_fd_iomux);
 
-    if (mraa_rockpi4_pinmap[phy_pin]->bankinfo->default_clock_state == MRAA_ROCKCHIP_CLOCK_DISABLED) {
-    	mraa_rockchip_set_clock_state(mraa_rockpi4_pinmap[phy_pin]->bankinfo, 0);
-    	mraa_rockpi4_pinmap[phy_pin]->bankinfo->clock_state = MRAA_ROCKCHIP_CLOCK_DISABLED;
+    if (mraa_rockpi4_pinmap[dev->pin]->bankinfo->default_clock_state == MRAA_ROCKCHIP_CLOCK_DISABLED) {
+    	mraa_rockchip_set_clock_state(mraa_rockpi4_pinmap[dev->pin]->bankinfo, 0);
+    	mraa_rockpi4_pinmap[dev->pin]->bankinfo->clock_state = MRAA_ROCKCHIP_CLOCK_DISABLED;
     }
 
     dev->mmap_write = &mraa_rockpi4_mmap_write;
     dev->mmap_read = &mraa_rockpi4_mmap_read;
-    mmap_count_bank[mraa_rockpi4_pinmap[phy_pin]->bankinfo->bank]++;
+    mmap_count_bank[mraa_rockpi4_pinmap[dev->pin]->bankinfo->bank]++;
     mmap_count++;
     syslog(LOG_NOTICE, "mmap setup done");
     return MRAA_SUCCESS;

@@ -76,7 +76,7 @@ typedef struct {
 } mraa_rockchip_bankinfo_t;
 
 typedef struct {
-	uint8_t pin;
+	uint16_t rockchip_pin;
 	mraa_rockchip_bankinfo_t* bankinfo;
 	mraa_rockchip_groupinfo_t* groupinfo;
 } mraa_rockchip_pininfo_t;
