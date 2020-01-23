@@ -106,12 +106,13 @@ static void mraa_rockchip_set_gpio_value(volatile uint32_t* register_value, uint
 	}
 }
 static mraa_result_t mraa_rockchip_mmap_clock() {
+	uint32_t clock_address = (MRAA_ROCKPI4_CLOCKGATE + MRAA_ROCKPI4_CLOCKGATE_OFFSET);
 	if (mmap_reg_clock == NULL) {
 		if ((mmap_fd_clock = open(MMAP_PATH, O_RDWR)) < 0) {
-			syslog(LOG_ERR, "rockpi4 mmap: unable to open /dev/mem for CLOCK ENABLE");
+			syslog(LOG_ERR, "rockpi4 mmap: unable to open %s for CLOCK ENABLE", MMAP_PATH);
 			return MRAA_ERROR_INVALID_HANDLE;
 		}
-		mmap_reg_clock = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, mmap_fd_clock, (MRAA_ROCKPI4_CLOCKGATE + MRAA_ROCKPI4_CLOCKGATE_OFFSET));
+		mmap_reg_clock = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, mmap_fd_clock, clock_address & ~((uint32_t)mmap_size-1));
 		if (mmap_reg_clock == MAP_FAILED) {
 			syslog(LOG_ERR, "rockpi4 mmap: failed to mmap CLOCK ENABLE");
 			mmap_reg_clock = NULL;
